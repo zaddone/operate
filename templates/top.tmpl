@@ -1,0 +1,26 @@
+{{define "top"}}
+    <header class="fixed-top">
+      <!-- Fixed navbar -->
+      <nav class="navbar navbar-expand-md navbar-dark bg-dark">
+        <a class="navbar-brand" href="/">{{.user}}</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarCollapse">
+          <ul class="navbar-nav mr-auto">
+	      <li class="nav-item">
+		<a class="nav-link" href="\login" target="_blank" role="button" id="login"  >
+		  登录
+		</a>
+	      </li>
+	      <li class="nav-item">
+		<a class="nav-link" href="#" role="button" id="saveall"  >
+		  保存全部
+		</a>
+	      </li>
+          </ul>
+        </div>
+	<div class="msg"></div>
+      </nav>
+    </header>
+{{end}}

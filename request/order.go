@@ -1,5 +1,6 @@
 package request
 import(
+	//"io/ioutil"
 	"github.com/zaddone/operate/config"
 	"github.com/zaddone/operate/oanda"
 	//"log"
@@ -12,6 +13,20 @@ import(
 	"log"
 	//"math"
 )
+//func GetOpenTrades(){
+//	err := clientHttp(0,"GET",
+//	config.Conf.GetAccPath() + "/openTrades",nil,
+//	func(statusCode int,body io.Reader) (er error){
+//		if statuscode != 200 {
+//			msg,_ := ioutil.ReadAll(body)
+//			return fmt.errorf("%v",string(msg))
+//		}
+//		var _res interface{}
+//		if er =  json.NewDecoder(body).Decode(&_res) ;er != nil {
+//			return er
+//		}
+//	})
+//}
 func GetTransactions(from int,hand func(interface{}) bool )(err error) {
 
 	path := config.Conf.GetAccPath() + "/transactions?"+url.Values{"from":[]string{strconv.Itoa(from)}}.Encode()

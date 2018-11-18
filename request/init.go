@@ -200,6 +200,9 @@ func syncPrice() {
 
 }
 
+func ClientHttp(num int ,methob string,path string,body interface{}, hand func(statusCode int,data io.Reader )error) error {
+	return clientHttp(num,methob,path,body,hand)
+}
 
 func clientHttp(num int ,methob string,path string,body interface{}, hand func(statusCode int,data io.Reader )error) error {
 //func clientHttp(num int ,methob string,path string,body *url.Values, hand func(statusCode int,data io.Reader )error) error {

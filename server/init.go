@@ -8,7 +8,10 @@ import(
 	"github.com/gin-gonic/gin"
 	//"github.com/zaddone/operate/oanda"
 	"github.com/zaddone/operate/request"
+	"encoding/json"
 	"strings"
+	"io/ioutil"
+	"io"
 
 )
 var (
@@ -20,9 +23,31 @@ func init(){
 		return
 	}
 	Router = gin.Default()
+	Router.LoadHTMLGlob(config.Conf.Templates)
 
 	Router.GET("/",func(c *gin.Context){
-		c.JSON(http.StatusOK,request.ShowInsSet())
+		c.HTML(http.StatusOK,"index.tmpl",nil)
+	})
+
+	Router.GET("/open",func(c *gin.Context){
+		var res interface{}
+		err := request.ClientHttp(0,"GET",
+		config.Conf.GetAccPath() + "/openTrades",nil,
+		func(statusCode int,body io.Reader) error{
+			if statusCode != 200 {
+				msg,_ := ioutil.ReadAll(body)
+				return fmt.Errorf("%v",string(msg))
+			}
+			if er :=  json.NewDecoder(body).Decode(&res) ;er != nil {
+				return er
+			}
+			return nil
+		})
+		if err != nil {
+			c.JSON(http.StatusNotFound,err)
+			return
+		}
+		c.JSON(http.StatusOK,res)
 	})
 	Router.GET("/test",func(c *gin.Context){
 		var orderFill []interface{}

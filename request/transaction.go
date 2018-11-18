@@ -13,98 +13,6 @@ import(
 	//"github.com/zaddone/operate/oanda"
 	"strconv"
 )
-//func sliceToStruct(src []interface{},obj interface) {
-//
-//	t := reflect.TypeOf(obj)
-//	if t.Kill() != reflect.Slice {
-//		return fmt.Errorf("%v",t.Kill())
-//	}
-//	v := reflect.ValueOf(obj)
-//
-//
-//	for i,_v := range src {
-//		switch _v.(type) {
-//		case map[string]interface{}:
-//			//var o interface{}
-//		case interface{}:
-//			reflect.Append(v,_v)
-//		}
-//	}
-//
-//}
-//func mapToStruct(src map[string]interface{},obj interface{}){
-//
-//	v := reflect.ValueOf(obj)
-//	for _k,_v := range src {
-//		switch _v.(type){
-//		case []interface{}:
-//			sl := v.FieldByName(_k)
-//			ddsl.Kind() == reflect.Slice
-//			sliceToStruct(_v.([]interface{}),v.FieldByName(_k).Interface())
-//		case map[string]interface{}:
-//			mapToStruct(_v.(map[string]interface{}),v.FieldByName(_k).Interface())
-//		case interface{}:
-//			v.FieldByName(_k).Set(reflect.ValueOf(_v))
-//		}
-//	}
-//
-//}
-
-//func NewOrderFillTransaction(d map[string]interface{}) (*OrderFillTransaction) {
-//
-//	var tr OrderFillTransaction
-//	v := reflect.ValueOf(&tr)
-//	for k,v := range 
-//
-//
-//}
-//func newTransaction (trType string) (transaction interface{}) {
-//
-//	switch trType {
-//		case "HEARTBEAT" :
-//			return new(oanda.TransactionHeartBeat)
-//		case "ORDER_FILL":
-//			return new(oanda.OrderFillTransaction)
-//		case "ORDER_CANCEL":
-//			return new(oanda.OrderCancelTransaction)
-//		case "MARKET_ORDER":
-//			return new(oanda.MarketOrderTransaction)
-//		case "DAILY_FINANCING":
-//			return new(oanda.DailyFinancingTransaction)
-//		case "TAKE_PROFIT_ORDER":
-//			return new(oanda.TakeProfitOrderTransaction)
-//		case "STOP_LOSS_ORDER":
-//			return new(oanda.StopLossOrderTransaction)
-//		case "TRAILING_STOP_LOSS_ORDER":
-//			return new(oanda.TrailingStopLossOrderTransaction)
-//		case "MARKET_ORDER_REJECT":
-//			return new(oanda.MarketOrderRejectTransaction)
-//		case "CREATE":
-//			return new(oanda.CreateTransaction)
-//		case "CLIENT_CONFIGURE":
-//			return new(oanda.ClientConfigureTransaction)
-//		case "TRANSFER_FUNDS":
-//			return new(oanda.TransferFundsTransaction)
-//		case "ORDER_CANCEL_REJECT":
-//			return new(oanda.OrderCancelRejectTransaction)
-//		default:
-//			panic(string(trType))
-//	}
-//
-//}
-//
-//func handTransaction(db []byte) (err error){
-//
-//	var d map[string]interface{}
-//	err = json.Unmarshal(db,&d)
-//	if err != nil {
-//		return err
-//	}
-//	tr := newTransaction(d["type"].(string))
-//	return json.Unmarshal(db,tr)
-//
-//
-//}
 func runTransactionsStream(){
 	syncTransaction(func(tr interface{}){
 		if db,err:=json.Marshal(tr) ; err == nil{
@@ -175,7 +83,7 @@ func syncTransaction(hand func(interface{})){
 			config.Conf.GetAccPath() + "/transactions/idrange?"+url.Values{"from":[]string{strconv.Itoa(lastid+1)},"to":[]string{strconv.Itoa(id-1)}}.Encode(),nil,func(sta int,body io.Reader ) error {
 				if sta != 200 {
 					msg,_ := ioutil.ReadAll(body)
-					return fmt.Errorf("%d %s",sta,msg)
+					return fmt.Errorf("%d %s",sta,string(msg))
 				}
 				var _res interface{}
 				if er =  json.NewDecoder(body).Decode(&_res) ;er != nil {

@@ -62,6 +62,7 @@ type Config struct {
 
 	AccountID string
 	Proxy string
+	Templates string
 	//BEGINTIME string
 	Port string
 	//InsName string
@@ -146,13 +147,10 @@ func NewConfig()  *Config {
 	_,err := os.Stat(*FileName)
 	if err != nil {
 		c.AccountID = "101-011-2471429-001"
-		//c.BEGINTIME = "2018-07-21T00:00:00"
 		c.Port=":8080"
-		//c.InsName = "EUR_USD|EUR_JPY"
-		//c.InsName = "EUR_JPY"
+		c.Templates = "./templates/*"
 		c.Units = 100
 		c.Server = true
-		//c.Price = false
 		c.LogPath = "TrLog"
 		//c.DbPath = "db.db"
 		c.KvDbPath = "kvdb.db"
