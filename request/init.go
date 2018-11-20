@@ -23,7 +23,7 @@ var (
 	Ins_key []byte = []byte("instruments")
 	//InsMap map[string]*Instrument = map[string]*Instrument{}
 	InsSet sync.Map = sync.Map{}
-	ServerTime int64
+	//ServerTime int64
 )
 func ShowInsSet() (m map[string]interface{}){
 	m = map[string]interface{}{}
@@ -37,22 +37,22 @@ func ShowInsSet() (m map[string]interface{}){
 	})
 	return
 }
-func GetNowTime() time.Time {
-	loc,err := time.LoadLocation("Etc/GMT-3")
-	if err != nil {
-		panic(err)
-	}
-	return time.Unix(ServerTime,0).In(loc)
-}
+//func GetNowTime() time.Time {
+//	loc,err := time.LoadLocation("Etc/GMT-3")
+//	if err != nil {
+//		panic(err)
+//	}
+//	return time.Unix(ServerTime,0).In(loc)
+//}
 func GetEndDaySec() int64 {
-	now := GetNowTime()
+	now := time.Now()
 	end := time.Date(now.Year(),now.Month(),now.Day(),0,0,0,0,now.Location()).AddDate(0,0,1)
 	return end.Unix() - now.Unix()
 }
-func ShowTime(){
-	now := time.Now()
-	fmt.Println(GetNowTime(),now,float64(GetEndDaySec())/3600)
-}
+//func ShowTime(){
+//	now := time.Now()
+//	fmt.Println(GetNowTime(),now,float64(GetEndDaySec())/3600)
+//}
 func Show(){
 	//num :=0
 	InsSet.Range(func(k,v interface{})bool{
@@ -92,6 +92,8 @@ func syncGetPriceVar(ins_url *url.Values){
 	var err error
 	var lr,r []byte
 	var p bool
+	//Now := time.Now().Unix()
+	//var count int64
 	//fmt.Println(ins_url.Encode())
 	for{
 		err = clientHttp(0,
@@ -131,10 +133,12 @@ func syncGetPriceVar(ins_url *url.Values){
 						log.Println(er,string(r))
 						continue
 					}
-					ServerTime = d.Time.Time()
-					fmt.Printf("%v\r",time.Unix(ServerTime,0).UTC())
 					name := string(d.Instrument)
 					if name != "" {
+						//ServerTime = d.Time.Time()
+						//count++
+						//timeDif:=(ServerTime - Now)
+						//fmt.Printf("%s %d %d\r",time.Unix(ServerTime,0),timeDif,count)
 						//fmt.Println(d)
 						v,ok := InsSet.Load(name)
 						if !ok {
@@ -195,6 +199,13 @@ func syncPrice() {
 		}
 		syncPrice()
 	}else{
+		//le := len(Ins)
+		//var I int
+		//for i:=0;i<le;{
+		//	I=i+50
+		//	go syncGetPriceVar(&url.Values{"instruments":[]string{strings.Join(Ins[i:I],",")}})
+		//	i = i
+		//}
 		go syncGetPriceVar(&url.Values{"instruments":[]string{strings.Join(Ins,",")}})
 	}
 

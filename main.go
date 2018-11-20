@@ -12,8 +12,8 @@ func main(){
 		switch strings.ToLower(cmd) {
 		case "show":
 			request.Show()
-		case "time":
-			request.ShowTime()
+	//	case "time":
+	//		request.ShowTime()
 		}
 		fmt.Println(cmd)
 		cmd = ""

@@ -7,10 +7,7 @@ import(
 	"fmt"
 	"github.com/zaddone/operate/config"
 	"github.com/zaddone/operate/oanda"
-	"log"
-	"io"
-	"bufio"
-	"encoding/json"
+	//"log"
 )
 
 type PriceVar struct {
@@ -36,7 +33,7 @@ func (self *PriceVar) RunPriceStream(){
 	for{
 		err = clientHttp(0,
 		"GET",
-		config.Conf.GetStreamAccPath()+"/pricing/stream?"+url.Values{"instruments":[]string{self.Ins.Name}}.Encode(),
+		config.Conf.GetStreamAccPath()+"/pricing/stream?"+&url.Values{"instruments":[]string{self.Ins.Name}}.Encode(),
 		nil,
 		func(statusCode int,data io.Reader) error {
 			if statusCode != 200 {
@@ -96,7 +93,7 @@ func NewPriceVar(ins *Instrument) (p *PriceVar) {
 		priceChan:make(chan *oanda.Price,100),
 		stop:make(chan bool),
 	}
-	//go p.RunPriceStream()
+	go p.RunPriceStream()
 	go p.RunAdd()
 	return
 }
@@ -153,7 +150,7 @@ func (self *PriceVar) add(v *oanda.Price) {
 			Max = diff
 		}
 	}
-	difp :=sumdif/float64(le)*1.2
+	difp :=sumdif/float64(le)
 	if (maxid == 0) || (math.Abs(Max) < difp) {
 		return
 	}
@@ -171,55 +168,47 @@ func (self *PriceVar) add(v *oanda.Price) {
 		return
 	}
 	le = len(canc.nodes)
-	if le < 3 {
+	if le < 2 {
 		return
 	}
-	//timediff := v.Time.Time() - canc.cans[len(canc.cans)-1].Time
-	//if timediff<0 {
-	//	//fmt.Println("timediff",timediff)
-	//	return
-	//}
-	_sl :=canc.nodes[le-1]
-	_tp :=canc.nodes[le-2]
-	//if (_sl.dis >0) != (_tp.dis>0) {
-	//	return
-	//}
-	sl := _sl.ca.getVal()
-	tp := _tp.ca.getVal()
-	df := tp - sl
+	timediff := v.Time.Time() - canc.cans[len(canc.cans)-1].Time
+	if timediff<0 {
+		//fmt.Println("timediff",timediff)
+		return
+	}
+	k1 :=canc.nodes[le-1]
+	k2 :=canc.nodes[le-2]
+	df := k2.ca.getVal() - k1.ca.getVal()
 	_df := (df>0)
 	if _df != (Max>0) {
 		return
 	}
-	if math.Abs(df) < difp*5 {
-		return
-	}
-	gr_2 := config.GetGran(canc.cans[len(canc.cans)-1].Time - _tp.ca.Time)
+
+	gr_2 := config.GetGran(v.Time.Time() - k2.ca.Time)
 	if gr_2 == nil {
 		return
 	}
-	//var pric,sl,tp float64
-	//if _df {
-	//	pric = v.Bid()
-	//}else{
-	//	pric = v.Ask()
-	//}
-
-	//__sl := sl - pric
-	//__tp := tp - pric
-	//hk := ((_sl>0) == (_tp>0))
-	//if hk {
-	//	return
-	//}
-	//difp = difp*3
-	//if difp < self.Ins.MinimumTrailingStopDistance ||
-	//	math.Abs(_sl) < difp ||
-	//	math.Abs(_tp) < difp {
-	//	return
-	//}
-
+	var pric,sl,tp float64
+	if _df {
+		pric = v.Bid()
+	}else{
+		pric = v.Ask()
+	}
+	sl = k1.ca.getVal() - pric
+	tp = k2.ca.getVal() - pric
+	hk := ((sl>0) ==(tp>0))
+	if hk {
+		return
+	}
+	difp = difp*3
+	if difp < self.Ins.MinimumTrailingStopDistance ||
+		math.Abs(sl) < difp ||
+		math.Abs(tp) < difp {
+		return
+	}
 	canc_2,err := NewCanCache(self.Ins.Name,gr_2,10)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	if (canc_2.endMax>0) != _df{

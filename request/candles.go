@@ -42,6 +42,7 @@ func NewCanCache(insName string,gr *config.Gran,Count int) (ca *CanCache,err err
 				panic(err)
 			}
 			num = 0
+			ca.endMax = 0
 			for i,_can := range ca.cans[begin:] {
 				sum += _can.getMidLong()
 				diff = can.getVal() - _can.getVal()
@@ -58,9 +59,7 @@ func NewCanCache(insName string,gr *config.Gran,Count int) (ca *CanCache,err err
 				begin += num
 				ca.nodes = append(ca.nodes,&node{ca.cans[begin],ca.endMax,begin})
 				dis = ca.endMax
-				ca.endMax = 0
 			}
-
 			ca.cans = append(ca.cans,can)
 			return nil
 		},

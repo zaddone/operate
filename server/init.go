@@ -28,6 +28,9 @@ func init(){
 	Router.GET("/",func(c *gin.Context){
 		c.HTML(http.StatusOK,"index.tmpl",nil)
 	})
+	Router.GET("/show",func(c *gin.Context){
+		c.JSON(http.StatusOK,request.ShowInsSet())
+	})
 
 	Router.GET("/open",func(c *gin.Context){
 		var res interface{}
