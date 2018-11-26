@@ -131,10 +131,6 @@ func (self *PriceVar) add(v *oanda.Price) {
 		self.last = nil
 		return
 	}
-	//defer func(){
-	//	self.list = append(self.list,v)
-	//}()
-
 	self.list = append(self.list,v)
 	var sumdif,Max,diff float64
 	maxid := 0
@@ -153,7 +149,7 @@ func (self *PriceVar) add(v *oanda.Price) {
 			Max = diff
 		}
 	}
-	difp :=sumdif/float64(le)*1.2
+	difp :=sumdif/float64(le)
 	if (maxid == 0) || (math.Abs(Max) < difp) {
 		return
 	}
@@ -165,7 +161,7 @@ func (self *PriceVar) add(v *oanda.Price) {
 	if gr == nil {
 		return
 	}
-	canc,err := NewCanCache(self.Ins.Name,gr,100)
+	canc,err := NewCanCache(self.Ins.Name,gr,int(GetEndDaySec(v.Time.Time())/gr.Val()))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -174,93 +170,59 @@ func (self *PriceVar) add(v *oanda.Price) {
 	if le < 3 {
 		return
 	}
-	//timediff := v.Time.Time() - canc.cans[len(canc.cans)-1].Time
-	//if timediff<0 {
-	//	//fmt.Println("timediff",timediff)
-	//	return
-	//}
 	_sl :=canc.nodes[le-1]
 	_tp :=canc.nodes[le-2]
-	//if (_sl.dis >0) != (_tp.dis>0) {
-	//	return
-	//}
 	sl := _sl.ca.getVal()
 	tp := _tp.ca.getVal()
-	df := tp - sl
-	_df := (df>0)
-	if _df != (Max>0) {
+	tp_v := tp - mid
+	sl_v := sl - mid
+	if ((tp_v>0) == (sl_v>0)) || (math.Abs(tp_v) < math.Abs(sl_v)){
 		return
 	}
-	if math.Abs(df) < difp*5 {
+	_df := (tp_v > 0)
+	if (_df != (Max > 0)) || (_df != (canc.GetDis()>0)) {
 		return
 	}
+
 	gr_2 := config.GetGran(canc.cans[len(canc.cans)-1].Time - _tp.ca.Time)
 	if gr_2 == nil {
 		return
 	}
-	//var pric,sl,tp float64
-	//if _df {
-	//	pric = v.Bid()
-	//}else{
-	//	pric = v.Ask()
-	//}
-
-	//__sl := sl - pric
-	//__tp := tp - pric
-	//hk := ((_sl>0) == (_tp>0))
-	//if hk {
-	//	return
-	//}
-	//difp = difp*3
-	//if difp < self.Ins.MinimumTrailingStopDistance ||
-	//	math.Abs(_sl) < difp ||
-	//	math.Abs(_tp) < difp {
-	//	return
-	//}
-
 	canc_2,err := NewCanCache(self.Ins.Name,gr_2,10)
 	if err != nil {
 		return
 	}
-	if (canc_2.endMax>0) != _df{
+	if (canc_2.GetDis()>0) != _df{
 		return
-	}
-	unit := config.Conf.Units
-	if !_df {
-		unit = -unit
 	}
 	if self.order == nil {
-		self.order = &OrderInfo{ins:self.Ins,tp:tp,sl:sl}
+		self.order = &OrderInfo{ins:self.Ins,tp:tp,sl:sl,price:mid}
 		self.order.PostNew()
 		return
 	}
-	if self.order.GetResId() == "" {
-		self.order.sl = sl
-		self.order.tp = tp
-		self.order.PostNew()
+
+	trid :=self.order.GetResId()
+	if  trid == "" {
+		self.order.UpdateNew(tp,sl,mid)
+		return
+	}
+	res,err := GetTrades(trid)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	ct := res["trade"].(map[string]interface{})["closeTime"]
+	if ct != nil {
+		//fmt.Println("close Time",ct)
+		self.order.UpdateNew(tp,sl,mid)
+		return
+	}
+	if self.order.sl == sl {
 		return
 	}
 	if ((self.order.tp - self.order.sl)>0) != _df {
-		_diff:=math.Abs(self.order.tp - self.order.sl)
-		isUpdate:= false
-		if math.Abs(tp - self.order.sl) > _diff {
-			isUpdate =true
-			self.order.tp = tp
-		}
-		if math.Abs(self.order.tp - sl) > _diff {
-			isUpdate =true
-			self.order.sl = sl
-		}
-		if isUpdate {
-			self.order.Update()
-		}
-	}else{
-		if math.Abs(df) > math.Abs(self.order.tp - self.order.sl) {
-			self.order.Close()
-			self.order.sl = sl
-			self.order.tp = tp
-			self.order.PostNew()
-		}
+		CloseTrades(trid,"ALL")
+		return
 	}
 
 }
@@ -271,7 +233,6 @@ func (self *PriceVar) show() float64 {
 		return 0
 	}
 	return float64(self.last.TimeInterval())
-	//return math.Pow(10,self.Ins.DisplayPrecision) * (self.list[len(self.list)-1].middle() - self.list[0].middle())
 
 }
 
@@ -289,10 +250,14 @@ func (self *PriceVar) PriceInterval() float64 {
 
 func (self *PriceVar) TimeInterval () int64 {
 
+	if self.last == nil {
+		return 0
+	}
+
 	le := len(self.list)
 	if le == 0 {
 		return 0
 	}
-	return self.list[le-1].Time.Time() - self.list[0].Time.Time()
+	return self.list[le-1].Time.Time() - self.last.list[0].Time.Time()
 
 }

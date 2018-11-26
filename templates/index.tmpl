@@ -9,18 +9,59 @@
 <!-- Begin page content -->
  
 <main role="main" class="container">
-<div class="alert alert-secondary" role="alert" id="title" data-datetime="">
 
-</div>
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">#</th>
+      <th scope="col">instrument</th>
+      <th scope="col">openTime</th>
+      <th scope="col">unrealizedPL</th>
+      <th scope="col">realizedPL</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th scope="row">1</th>
+      <td>Mark</td>
+      <td>Otto</td>
+      <td>@mdo</td>
+    </tr>
+    <tr>
+      <th scope="row">2</th>
+      <td>Jacob</td>
+      <td>Thornton</td>
+      <td>@fat</td>
+    </tr>
+    <tr>
+      <th scope="row">3</th>
+      <td>Larry</td>
+      <td>the Bird</td>
+      <td>@twitter</td>
+    </tr>
+  </tbody>
+</table>
 
-<div class="container scrollspy-example" id="con" data-id="" >
-
-
-</div>	    
 </main>
 {{template "footer" .}} 
 
 <script>
+dbCache = new Array();
+function request(body){
+	$.getJSON('/report',body,function(data) {		
+		data.transactions.forEach(function(db){
+			console.log(db);
+			dbCache.push(db);
+		});
+		lastid =  parseInt(data.lastTransactionID)
+		if (body.from <lastid) {
+			request({page:body.page,from:lastid+1});			
+		}		
+	});
+}
+$(function(){
+	request({page:1000});	
+});
 </script>
 </body>
 </html>

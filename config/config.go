@@ -38,7 +38,9 @@ var (
 			&Gran{"H6"  , 3600 * 6},
 			&Gran{"H8"  , 3600 * 8},
 			&Gran{"H12" , 3600 * 12},
-			&Gran{"D"   , 3600 * 24}}
+			&Gran{"D"   , 3600 * 24},
+			&Gran{"w"   , 3600 * 24*7},
+		}
 )
 func GetTime() time.Time {
 	loc,err := time.LoadLocation("Etc/GMT-3")

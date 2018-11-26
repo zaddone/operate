@@ -17,8 +17,21 @@ type CanCache struct {
 	endMax float64
 
 }
+func (self *CanCache) GetDis() float64 {
+	if self.endMax!=0 {
+		return self.endMax
+	}
+	le := len(self.nodes)
+	if le == 0 {
+		return 0
+	}
+	return self.nodes[le-1].dis
+}
 
 func NewCanCache(insName string,gr *config.Gran,Count int) (ca *CanCache,err error) {
+	if Count>100 {
+		Count = 100
+	}
 	ca = &CanCache{}
 	ca.cans = make([]*Candles,0,Count)
 	var can *Candles
@@ -64,12 +77,12 @@ func NewCanCache(insName string,gr *config.Gran,Count int) (ca *CanCache,err err
 			return nil
 		},
 	)
-	if ca.endMax == 0 {
-		le := len(ca.nodes)
-		if le >0 {
-			ca.endMax = ca.nodes[le-1].dis
-		}
-	}
+	//if ca.endMax == 0 {
+	//	le := len(ca.nodes)
+	//	if le >0 {
+	//		ca.endMax = ca.nodes[le-1].dis
+	//	}
+	//}
 	if err != nil {
 		return
 	}

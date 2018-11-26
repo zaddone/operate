@@ -15,7 +15,7 @@ import(
 	"sync"
 	"bufio"
 	"bytes"
-	//"strconv"
+	"strconv"
 	//"math"
 )
 var (
@@ -23,31 +23,36 @@ var (
 	Ins_key []byte = []byte("instruments")
 	//InsMap map[string]*Instrument = map[string]*Instrument{}
 	InsSet sync.Map = sync.Map{}
+
+	AccountSummary map[string]interface{}
+	MarginRate float64
+	//isEnd bool = false
 	//ServerTime int64
 )
 func ShowInsSet() (m map[string]interface{}){
 	m = map[string]interface{}{}
 	InsSet.Range(func(k,v interface{})bool{
-		pr := v.(*PriceVar).GetLastPr()
+		pv :=v.(*PriceVar)
+		pr := pv.GetLastPr()
 		if pr == nil {
 			return true
 		}
-		m[k.(string)] = pr
+		m[k.(string)] = map[string]interface{}{"ins":pv,"price":pr}
 		return true
 	})
 	return
 }
-//func GetNowTime() time.Time {
-//	loc,err := time.LoadLocation("Etc/GMT-3")
-//	if err != nil {
-//		panic(err)
-//	}
-//	return time.Unix(ServerTime,0).In(loc)
-//}
-func GetEndDaySec() int64 {
-	now := time.Now()
+func GetNowTime(timeu int64) time.Time {
+	loc,err := time.LoadLocation("Etc/GMT-3")
+	if err != nil {
+		panic(err)
+	}
+	return time.Unix(timeu,0).In(loc)
+}
+func GetEndDaySec(timeu int64) int64 {
+	now := GetNowTime(timeu)
 	end := time.Date(now.Year(),now.Month(),now.Day(),0,0,0,0,now.Location()).AddDate(0,0,1)
-	return end.Unix() - now.Unix()
+	return end.Unix() - timeu
 }
 //func ShowTime(){
 //	now := time.Now()
@@ -74,16 +79,25 @@ func Show(){
 
 func init(){
 
+
 	Header = http.Header{}
 	Header.Set("Authorization", "Bearer "+ config.Authorization)
 	Header.Set("Connection", "Keep-Alive")
 	Header.Set("Accept-Datetime-Format", "UNIX")
 	Header.Set("Content-type", "application/json")
+
+
+	var err error
+	AccountSummary,err = GetAccSummary()
+	if err != nil {
+		panic(err)
+	}
+	MarginRate,err = strconv.ParseFloat(AccountSummary["account"].(map[string]interface{})["marginRate"].(string),64)
+	if err != nil {
+		panic(err)
+	}
+	MarginRate = 1/MarginRate
 	syncPrice()
-	go runTransactionsStream()
-	//go TransactionStream(func(db []byte)error{
-	//	
-	//})
 
 }
 
@@ -134,6 +148,14 @@ func syncGetPriceVar(ins_url *url.Values){
 						continue
 					}
 					name := string(d.Instrument)
+
+					if GetEndDaySec(d.Time.Time())<60*10 {
+						er = CloseAllTrades()
+						if er != nil {
+							log.Println(er)
+						}
+						continue
+					}
 					if name != "" {
 						//ServerTime = d.Time.Time()
 						//count++
@@ -160,7 +182,7 @@ func syncGetPriceVar(ins_url *url.Values){
 		})
 		if err != nil {
 			//panic(err)
-			fmt.Println(err)
+			log.Println("/pricing/stream",err)
 		}
 	}
 

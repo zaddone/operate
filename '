@@ -1,61 +1,186 @@
 package request
 import(
-	"math"
-	"sync"
-	//"time"
+	//"reflect"
 	"net/url"
+	"github.com/boltdb/bolt"
+	"encoding/json"
+	"io"
+	"log"
 	"fmt"
+	"bufio"
+	"io/ioutil"
 	"github.com/zaddone/operate/config"
-	"github.com/zaddone/operate/oanda"
-	//"log"
+	//"github.com/zaddone/operate/oanda"
+	"strconv"
 )
 
-type PriceVar struct {
+func transactionsRange(from int,hand func(interface{})error) error {
+	to := from+1000
+	for{
+	return clientHttp(0,"GET",
+	config.Conf.GetAccPath() + "/transactions/idrange?"+url.Values{"from":[]string{strconv.Itoa(from)},"to":[]string{strconv.Itoa(to)}}.Encode(),nil,func(sta int,body io.Reader )(error) {
+		if sta != 200 {
+			msg,_ := ioutil.ReadAll(body)
+			return fmt.Errorf("%d %s",sta,string(msg))
+		}
+		var _res interface{}
+		if er :=  json.NewDecoder(body).Decode(&_res) ;er != nil {
+			return er
+		}
+		for _,_tr := range _res.(map[string]interface{})["transactions"].([]interface{}) {
+			if er = hand(_tr);er != nil{
+				return er
+			}
+		}
+		return nil
+	})
+	}
+	return nil
+}
 
-	Ins *Instrument
-	dis float64
-	list []*oanda.Price
-	last *PriceVar
-	//CacheMap map[string]*CanCache
-	order *OrderInfo
-	priceChan chan *oanda.Price
-	stop chan bool
-	sync.RWMutex
+func TransactionsList(id int) {
+	err := clientHttp(0,"GET",
+	config.Conf.GetAccPath() + "/transactions/idrange?"+url.Values{"from":[]string{strconv.Itoa(lastid+1)},"to":[]string{strconv.Itoa(id-1)}}.Encode(),nil,func(sta int,body io.Reader ) error {
+		if sta != 200 {
+			msg,_ := ioutil.ReadAll(body)
+			return fmt.Errorf("%d %s",sta,string(msg))
+		}
+		var _res interface{}
+		if er =  json.NewDecoder(body).Decode(&_res) ;er != nil {
+			return er
+		}
+		for _,_tr := range _res.(map[string]interface{})["transactions"].([]interface{}) {
+			hand(_tr)
+		}
+		return nil
+	})
+}
+func runTransactionsStream(){
+	syncTransaction(func(tr interface{}){
+		if db,err:=json.Marshal(tr) ; err == nil{
+			config.Conf.Log(db)
+		}
+		trm := tr.(map[string]interface{})
+		if trm["type"] != "ORDER_FILL" {
+			return
+		}
+		//fmt.Println(trm)
+		if trm["tradesClosed"] == nil {
+			return
+		}
+		if v,ok := InsSet.Load(trm["instrument"].(string));ok{
+			pv :=v.(*PriceVar)
+			if pv.order == nil {
+				return
+			}
+			orderId :=pv.order.GetResId()
+			if  orderId == ""{
+				return
+			}
+			for _,info := range trm["tradesClosed"].([]interface{}) {
+				_info :=info.(map[string]interface{})
+				closeid := _info["tradeID"].(string)
+				if orderId != closeid {
+					continue
+				}
+				pv.order.res = nil
+				pv.CountOrder++
+				if pl,err := strconv.ParseFloat(_info["realizedPL"].(string),64);err == nil {
+					pv.Pl += pl
+				}else{
+					panic(err)
+				}
+			}
+		}
 
-	Pl  float64
-	CountOrder int
+	})
 
 }
-func (self *PriceVar) RunPriceStream(){
-	var err error
+func syncTransaction(hand func(interface{})){
+	var lastid int
+	err := config.ViewKvDB([]byte("tran"),func(b *bolt.Bucket)error{
+		if v,er :=strconv.Atoi(string( b.Get([]byte("lastid")))); er == nil {
+			lastid = v
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	TransactionStream(func(db []byte)error{
+		var tr map[string]interface{}
+		if er :=  json.Unmarshal(db,&tr) ; er != nil {
+			return er
+		}
+		if tr["id"] == nil {
+			return nil
+		}
+		_id :=tr["id"].(string)
+		id,er := strconv.Atoi(_id)
+		if er != nil {
+			return er
+		}
+		if (lastid != 0) && (lastid+1 != id) {
+			er = clientHttp(0,"GET",
+			config.Conf.GetAccPath() + "/transactions/idrange?"+url.Values{"from":[]string{strconv.Itoa(lastid+1)},"to":[]string{strconv.Itoa(id-1)}}.Encode(),nil,func(sta int,body io.Reader ) error {
+				if sta != 200 {
+					msg,_ := ioutil.ReadAll(body)
+					return fmt.Errorf("%d %s",sta,string(msg))
+				}
+				var _res interface{}
+				if er =  json.NewDecoder(body).Decode(&_res) ;er != nil {
+					return er
+				}
+				for _,_tr := range _res.(map[string]interface{})["transactions"].([]interface{}) {
+					hand(_tr)
+				}
+				return nil
+			})
+		}
+		lastid = id
+		er = config.UpdateKvDB([]byte("tran"),func(b *bolt.Bucket)error{
+			b.Put([]byte("lastid"),[]byte(_id))
+			return nil
+		})
+		if er != nil {
+			panic(er)
+		}
+		hand(tr)
+		return nil
+
+	})
+}
+
+func TransactionStream(hand func([]byte)error) (err error){
+	//var err error
+	var lr []byte
 	var r []byte
 	var p bool
 	for{
 		err = clientHttp(0,
 		"GET",
-		config.Conf.GetStreamAccPath()+"/pricing/stream?"+&url.Values{"instruments":[]string{self.Ins.Name}}.Encode(),
+		config.Conf.GetStreamAccPath()+"/transactions/stream",
 		nil,
 		func(statusCode int,data io.Reader) error {
 			if statusCode != 200 {
-				return fmt.Errorf("%d",statusCode)
+				msg,_ := ioutil.ReadAll(data)
+				return fmt.Errorf("%d %s",statusCode,msg)
 			}
 			buf := bufio.NewReader(data)
 			for{
 				r,p,err = buf.ReadLine()
+				//fmt.Println(string(r),p)
 				if p {
-					return fmt.Errorf("%s",string(r))
-				}
-				if len(r)>0 {
-					var d oanda.Price
-					if er := json.Unmarshal(r,&d);er != nil {
-						log.Println(er,string(r))
-						continue
+					fmt.Println(string(r))
+					lr = r
+				}else if len(r)>0 {
+					if lr != nil {
+						r = append(lr,r...)
+						lr = nil
 					}
-					name := string(d.Instrument)
-					if name == "" {
-						continue
+					if er := hand(r);er != nil{
+						log.Println(er)
 					}
-					go self.AddPrice(&d)
 				}
 				if err != nil {
 					if err != io.EOF {
@@ -68,220 +193,8 @@ func (self *PriceVar) RunPriceStream(){
 			return nil
 		})
 		if err != nil {
-			//panic(err)
-			fmt.Println(err)
+			log.Println("transactions/stream",err)
 		}
 	}
-
-}
-func (self *PriceVar)GetLastPr() *oanda.Price {
-	self.RLock()
-	defer self.RUnlock()
-	//if self.last ==nil {
-	//	return nil
-	//}
-	le := len(self.list)
-	if le == 0 {
-		return nil
-	}
-	return self.list[le-1]
-
-}
-func NewPriceVar(ins *Instrument) (p *PriceVar) {
-	p = &PriceVar{
-		Ins:ins,
-		priceChan:make(chan *oanda.Price,100),
-		stop:make(chan bool),
-	}
-	go p.RunPriceStream()
-	go p.RunAdd()
-	return
-}
-func (self *PriceVar) UpdateOrder() {
-
-}
-func (self *PriceVar) AddPrice(p *oanda.Price){
-	self.priceChan<-p
-}
-func (self *PriceVar) RunAdd(){
-	for{
-		select{
-		case <-self.stop:
-			return
-		case p:= <-self.priceChan:
-			self.Lock()
-			self.add(p)
-			self.Unlock()
-		}
-	}
-}
-
-func (self *PriceVar) add(v *oanda.Price) {
-
-	le := len(self.list)
-	if le < 2 {
-		self.list = append(self.list,v)
-		return
-	}
-	if (v.Time.Time() - self.list[le-1].Time.Time()) > 60{
-		self.list = []*oanda.Price{v}
-		self.last = nil
-		return
-	}
-	//defer func(){
-	//	self.list = append(self.list,v)
-	//}()
-
-	self.list = append(self.list,v)
-	var sumdif,Max,diff float64
-	maxid := 0
-	mid := v.Middle()
-	//fmt.Println(mid)
-	var _p *oanda.Price
-	for i:=0 ; i<le ; i++ {
-		_p= self.list[i]
-		sumdif += _p.Diff()
-		diff = mid - _p.Middle()
-		if (diff>0) == (self.dis>0) {
-			continue
-		}
-		if math.Abs(diff) > math.Abs(Max) {
-			maxid = i
-			Max = diff
-		}
-	}
-	difp :=sumdif/float64(le)
-	if (maxid == 0) || (math.Abs(Max) < difp) {
-		return
-	}
-	//fmt.Println(self.Ins.Name,Max,maxid)
-	self.last = &PriceVar{Ins:self.Ins,list:self.list[:maxid],dis:self.dis}
-	self.list = self.list[maxid:]
-	self.dis = Max
-	gr := config.GetGran(self.TimeInterval())
-	if gr == nil {
-		return
-	}
-	canc,err := NewCanCache(self.Ins.Name,gr,100)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	le = len(canc.nodes)
-	if le < 2 {
-		return
-	}
-	timediff := v.Time.Time() - canc.cans[len(canc.cans)-1].Time
-	if timediff<0 {
-		//fmt.Println("timediff",timediff)
-		return
-	}
-	k1 :=canc.nodes[le-1]
-	k2 :=canc.nodes[le-2]
-	df := k2.ca.getVal() - k1.ca.getVal()
-	_df := (df>0)
-	if _df != (Max>0) {
-		return
-	}
-
-	gr_2 := config.GetGran(v.Time.Time() - k2.ca.Time)
-	if gr_2 == nil {
-		return
-	}
-	var pric,sl,tp float64
-	if _df {
-		pric = v.Bid()
-	}else{
-		pric = v.Ask()
-	}
-	sl = k1.ca.getVal() - pric
-	tp = k2.ca.getVal() - pric
-	hk := ((sl>0) ==(tp>0))
-	if hk {
-		return
-	}
-	difp = difp*3
-	if difp < self.Ins.MinimumTrailingStopDistance ||
-		math.Abs(sl) < difp ||
-		math.Abs(tp) < difp {
-		return
-	}
-	canc_2,err := NewCanCache(self.Ins.Name,gr_2,10)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if (canc_2.endMax>0) != _df{
-		return
-	}
-	unit := config.Conf.Units
-	if !_df {
-		unit = -unit
-	}
-	if self.order == nil {
-		self.order = &OrderInfo{ins:self.Ins,tp:tp,sl:sl}
-		self.order.PostNew()
-		return
-	}
-	if self.order.GetResId() == "" {
-		self.order.sl = sl
-		self.order.tp = tp
-		self.order.PostNew()
-		return
-	}
-	if ((self.order.tp - self.order.sl)>0) != _df {
-		_diff:=math.Abs(self.order.tp - self.order.sl)
-		isUpdate:= false
-		if math.Abs(tp - self.order.sl) > _diff {
-			isUpdate =true
-			self.order.tp = tp
-		}
-		if math.Abs(self.order.tp - sl) > _diff {
-			isUpdate =true
-			self.order.sl = sl
-		}
-		if isUpdate {
-			self.order.Update()
-		}
-	}else{
-		if math.Abs(df) > math.Abs(self.order.tp - self.order.sl) {
-			self.order.Close()
-			self.order.sl = sl
-			self.order.tp = tp
-			self.order.PostNew()
-		}
-	}
-
-}
-
-func (self *PriceVar) show() float64 {
-
-	if self.last == nil {
-		return 0
-	}
-	return float64(self.last.TimeInterval())
-	//return math.Pow(10,self.Ins.DisplayPrecision) * (self.list[len(self.list)-1].middle() - self.list[0].middle())
-
-}
-
-func (self *PriceVar) PriceInterval() float64 {
-
-	self.RLock()
-	defer self.RUnlock()
-	le := len(self.list)
-	if le == 0 {
-		return 0
-	}
-	return self.list[le-1].Middle() - self.list[0].Middle()
-
-}
-
-func (self *PriceVar) TimeInterval () int64 {
-
-	le := len(self.list)
-	if le == 0 {
-		return 0
-	}
-	return self.list[le-1].Time.Time() - self.list[0].Time.Time()
 
 }

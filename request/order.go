@@ -1,6 +1,6 @@
 package request
 import(
-	//"io/ioutil"
+	"io/ioutil"
 	"github.com/zaddone/operate/config"
 	"github.com/zaddone/operate/oanda"
 	//"log"
@@ -13,20 +13,51 @@ import(
 	"log"
 	//"math"
 )
-//func GetOpenTrades(){
-//	err := clientHttp(0,"GET",
-//	config.Conf.GetAccPath() + "/openTrades",nil,
-//	func(statusCode int,body io.Reader) (er error){
-//		if statuscode != 200 {
-//			msg,_ := ioutil.ReadAll(body)
-//			return fmt.errorf("%v",string(msg))
-//		}
-//		var _res interface{}
-//		if er =  json.NewDecoder(body).Decode(&_res) ;er != nil {
-//			return er
-//		}
-//	})
-//}
+
+func ListTrades() (res map[string]interface{},err error) {
+	res = map[string]interface{}{}
+	err = ClientHttp(0,"GET",
+	config.Conf.GetAccPath() + "/openTrades",nil,
+	func(statusCode int,body io.Reader) error{
+		if statusCode != 200 {
+			msg,_ := ioutil.ReadAll(body)
+			return fmt.Errorf("%v",string(msg))
+		}
+		if er :=  json.NewDecoder(body).Decode(&res) ;er != nil {
+			return er
+		}
+		return nil
+	})
+	return
+}
+func CloseAllTrades() error {
+	res,err := ListTrades()
+	if err != nil {
+		return err
+	}
+	for _,tr := range res["trades"].([]interface{}){
+		_,err = CloseTrades(tr.(map[string]interface{})["id"].(string),"ALL")
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	return nil
+}
+
+func GetTrades(id string) (res map[string]interface{},err error){
+
+	res = map[string]interface{}{}
+	err = clientHttp(0,"GET",
+	config.Conf.GetAccPath() + "/trades/"+id,nil,
+	func(statusCode int,body io.Reader) (er error){
+		if statusCode != 200 {
+			msg,_ := ioutil.ReadAll(body)
+			return fmt.Errorf("%v",string(msg))
+		}
+		return json.NewDecoder(body).Decode(&res)
+	})
+	return
+}
 func GetTransactions(from int,hand func(interface{}) bool )(err error) {
 
 	path := config.Conf.GetAccPath() + "/transactions?"+url.Values{"from":[]string{strconv.Itoa(from)}}.Encode()
@@ -70,8 +101,17 @@ func GetTransactions(from int,hand func(interface{}) bool )(err error) {
 }
 
 func HandleTrades(tp,sl,id string) (*oanda.TradesOrdersRequest,error) {
+
+	//log.Println("update")
 	path := config.Conf.GetAccPath() + "/trades/"+id + "/orders"
-	da, err := json.Marshal(map[string]interface{}{"takeProfit":&oanda.TakeProfitDetails{Price:tp},"stopLoss":&oanda.StopLossDetails{Price:sl}})
+	req := map[string]interface{}{}
+	if tp != "" {
+		req["takeProfit"] = &oanda.TakeProfitDetails{Price:tp}
+	}
+	if sl != "" {
+		req["stopLoss"] = &oanda.StopLossDetails{Price:sl}
+	}
+	da, err := json.Marshal(req)
 	if err != nil {
 		panic(err)
 	}
@@ -85,13 +125,59 @@ func HandleTrades(tp,sl,id string) (*oanda.TradesOrdersRequest,error) {
 		}
 		return jsondb.Decode(&mr)
 	})
+	if err != nil {
+		config.Conf.Log([]byte(err.Error()))
+		//panic(err)
+	}else{
+		db,err := json.Marshal(mr)
+		if err != nil {
+			panic(err)
+		}
+		config.Conf.Log(db)
+	}
 	return &mr,err
+
+}
+func CloseTrades(tradeId string,longUnits string) (res map[string]interface{}, err error) {
+
+	path := config.Conf.GetAccPath()+"/trades/" + tradeId + "/close"
+	//fmt.Println(path)
+	//<URL>/v3/accounts/<ACCOUNT>/trades/6397/close"
+
+	val := make(map[string]string)
+	//val["longUnits"] = "ALL"
+	val["units"] = longUnits
+	da, err := json.Marshal(val)
+	if err != nil {
+		panic(err)
+	}
+	res = map[string]interface{}{}
+	err = clientHttp(0,"PUT",path,da,func(statusCode int,body io.Reader )error{
+		err = json.NewDecoder(body).Decode(&res)
+		if statusCode != 200 {
+			return fmt.Errorf("%d %v %v",statusCode,res,err)
+		}
+		return err
+	})
+	if err != nil {
+		config.Conf.Log([]byte(err.Error()))
+		//panic(err)
+	}else{
+		db,err := json.Marshal(res)
+		if err != nil {
+			panic(err)
+		}
+		config.Conf.Log(db)
+	}
+	return res,err
 
 }
 
 func ClosePosition(InsName string,longUnits string) (*oanda.PositionResponses,error) {
 
 	path := config.Conf.GetAccPath()+"/positions/" + InsName + "/close"
+	//fmt.Println(path)
+	//log.Println("close")
 
 	val := make(map[string]string)
 	//val["longUnits"] = "ALL"
@@ -110,12 +196,39 @@ func ClosePosition(InsName string,longUnits string) (*oanda.PositionResponses,er
 		}
 		return jsondb.Decode(&mr)
 	})
+	if err != nil {
+		config.Conf.Log([]byte(err.Error()))
+		//panic(err)
+	}else{
+		db,err := json.Marshal(mr)
+		if err != nil {
+			panic(err)
+		}
+		config.Conf.Log(db)
+	}
 	return &mr,err
+
+}
+func GetAccSummary() (res map[string]interface{},err error){
+
+	res = map[string]interface{}{}
+	err = clientHttp(0,"GET",config.Conf.GetAccPath()+"/summary",nil,func(statusCode int,body io.Reader )error{
+		er := json.NewDecoder(body).Decode(&res)
+		if er != nil {
+			panic(er)
+		}
+		if statusCode != 200 {
+			return fmt.Errorf("%d %v",statusCode,res)
+		}
+		return nil
+	})
+	return
 
 }
 
 func HandleOrder(InsName string,unit int, dif , Tp, Sl string) (*oanda.OrderResponse, error) {
 
+	//log.Println("open")
 	path := config.Conf.GetAccPath()+"/orders"
 	order := oanda.NewMarketOrderRequest(InsName)
 	order.SetUnits(unit)
@@ -150,10 +263,16 @@ func HandleOrder(InsName string,unit int, dif , Tp, Sl string) (*oanda.OrderResp
 		return jsondb.Decode(&mr)
 
 	})
-	//if err != nil {
-	//	panic(err)
-	//}
-	//fmt.Println(mr,err)
+	if err != nil {
+		config.Conf.Log([]byte(err.Error()))
+		//panic(err)
+	}else{
+		db,err := json.Marshal(mr)
+		if err != nil {
+			panic(err)
+		}
+		config.Conf.Log(db)
+	}
 	return &mr, err
 
 }
@@ -163,6 +282,7 @@ type OrderInfo struct {
 	ins *Instrument
 	tp float64
 	sl float64
+	price float64
 	res *oanda.OrderResponse
 	//resUpdate []interface{}
 }
@@ -196,44 +316,60 @@ func NewTestOrder(pr *PriceVar,isBuy bool) (*OrderInfo,error) {
 
 }
 func (self *OrderInfo) Close() {
-	res,err := ClosePosition(self.ins.Name,"ALL")
+	_,err := ClosePosition(self.ins.Name,"ALL")
 	if err == nil {
-		log.Printf("%v\r\n",res)
+		//log.Printf("%v\r\n",res)
 	}else{
 		log.Println(err)
 	}
 }
 func (self *OrderInfo) Update() {
-	res,err :=HandleTrades(self.ins.StandardPrice(self.tp),self.ins.StandardPrice(self.sl),self.GetResId())
+	_,err :=HandleTrades(self.ins.StandardPrice(self.tp),self.ins.StandardPrice(self.sl),self.GetResId())
 	if err == nil {
-		log.Printf("%v\r\n",res)
+		//log.Printf("%v\r\n",res)
 	}else{
 		log.Println(err)
 	}
 	return
 }
+func (self *OrderInfo) UpdateNew(tp,sl,pr float64) {
+	self.sl = sl
+	self.tp = tp
+	self.price = pr
+	self.PostNew()
+}
 func (self *OrderInfo) PostNew() {
 
-	unit := config.Conf.Units
+	unit := self.getUnit(config.Conf.Units)
+	if unit == 0 {
+		return
+	}
 	if  (self.tp - self.sl)<0 {
 		unit = -unit
 	}
-	err := self.Post(unit)
-	if err == nil {
-		log.Printf("%v\r\n",self.res)
-	}else{
-		log.Println(err)
-	}
+	//diff := self.ins.StandardPrice(math.Abs(self.sl - self.price))
+	self.res,_ = HandleOrder(self.ins.Name,unit,"",self.ins.StandardPrice(self.tp),self.ins.StandardPrice(self.sl))
 
+}
+
+func (self *OrderInfo) getUnit(unit int) int {
+	return int((MarginRate*float64(unit))/((self.sl+self.tp)/2))
 }
 func (self *OrderInfo) Post(unit int) (err error) {
 
-	self.res,err = HandleOrder(self.ins.Name,unit,"",self.ins.StandardPrice(self.tp),self.ins.StandardPrice(self.sl))
+	self.res,err = HandleOrder(self.ins.Name,self.getUnit(unit),"",self.ins.StandardPrice(self.tp),self.ins.StandardPrice(self.sl))
 	//if err != nil {
 	//	fmt.Println(self.res)
 	//}
 	return err
 
+}
+func (self *OrderInfo) GetResPrice() float64 {
+	p,err := strconv.ParseFloat(string(self.res.OrderFillTransaction.Price),64)
+	if err != nil {
+		panic(err)
+	}
+	return p
 }
 func (self *OrderInfo) GetResTime() int64 {
 	return self.res.OrderFillTransaction.Time.Time()

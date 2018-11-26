@@ -3,3 +3,4 @@
 *.exe
 main
 .*.go.swp
+/TrLog/

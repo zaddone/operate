@@ -13,6 +13,34 @@ import(
 	//"github.com/zaddone/operate/oanda"
 	"strconv"
 )
+
+//func TransactionsRange(from int,page int,hand func(interface{})error) (to int,err error) {
+//	err = clientHttp(0,"GET",
+//	config.Conf.GetAccPath() + "/transactions/idrange?"+url.Values{"from":[]string{strconv.Itoa(from)},"to":[]string{strconv.Itoa(from+page)}}.Encode(),nil,func(sta int,body io.Reader )(er error) {
+//		if sta != 200 {
+//			msg,_ := ioutil.ReadAll(body)
+//			return fmt.Errorf("%d %s",sta,string(msg))
+//		}
+//		var _res interface{}
+//		if er =  json.NewDecoder(body).Decode(&_res) ;er != nil {
+//			return er
+//		}
+//		res :=_res.(map[string]interface{})
+//		to,er =strconv.Atoi(res["lastTransactionID"].(string))
+//		if er != nil {
+//			return er
+//		}
+//		for _,_tr := range res["transactions"].([]interface{}) {
+//			if er = hand(_tr);er != nil{
+//				return er
+//			}
+//		}
+//		return nil
+//	})
+//	return
+//
+//}
+
 func runTransactionsStream(){
 	syncTransaction(func(tr interface{}){
 		if db,err:=json.Marshal(tr) ; err == nil{
@@ -22,7 +50,7 @@ func runTransactionsStream(){
 		if trm["type"] != "ORDER_FILL" {
 			return
 		}
-		fmt.Println(trm)
+		//fmt.Println(trm)
 		if trm["tradesClosed"] == nil {
 			return
 		}
@@ -151,7 +179,7 @@ func TransactionStream(hand func([]byte)error) (err error){
 			return nil
 		})
 		if err != nil {
-			log.Println(err)
+			log.Println("transactions/stream",err)
 		}
 	}
 
