@@ -4,6 +4,28 @@ import(
 	//"time"
 	//"strings"
 )
+type EasyPrice struct {
+	dateTime int64
+	bid float64
+	ask float64
+}
+func NewEasyPrice(p *Price)*EasyPrice{
+	return &EasyPrice{
+		dateTime:p.DateTime(),
+		bid:p.Bid(),
+		ask:p.Ask(),
+	}
+}
+func (self *EasyPrice) DateTime() int64 {
+	return self.dateTime
+}
+func (self *EasyPrice) Diff() float64 {
+	return self.ask - self.bid
+}
+func (self *EasyPrice) Middle() float64 {
+	return (self.ask+self.bid) /2
+}
+
 type Price struct {
 	Type string `json:"type"`
 	Instrument InstrumentName `json:"instrument"`
@@ -16,6 +38,9 @@ type Price struct {
 	CloseoutAsk PriceValue `json:"closeoutAsk"`
 	QuoteHomeConversionFactors QuoteHomeConversionFactors `json:"quoteHomeConversionFactors"`
 	UnitsAvailable UnitsAvailable `json:"unitsAvailable"`
+}
+func (self *Price) DateTime() int64{
+	return self.Time.Time()
 }
 func (self *Price) Bid() float64 {
 	return self.bid()

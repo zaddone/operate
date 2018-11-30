@@ -14,31 +14,15 @@
   <thead>
     <tr>
       <th scope="col">#</th>
+      <th scope="col">type</th>
       <th scope="col">instrument</th>
       <th scope="col">openTime</th>
-      <th scope="col">unrealizedPL</th>
-      <th scope="col">realizedPL</th>
+      <th scope="col">pl</th>
+      <th scope="col">reason</th>
     </tr>
   </thead>
-  <tbody>
-    <tr>
-      <th scope="row">1</th>
-      <td>Mark</td>
-      <td>Otto</td>
-      <td>@mdo</td>
-    </tr>
-    <tr>
-      <th scope="row">2</th>
-      <td>Jacob</td>
-      <td>Thornton</td>
-      <td>@fat</td>
-    </tr>
-    <tr>
-      <th scope="row">3</th>
-      <td>Larry</td>
-      <td>the Bird</td>
-      <td>@twitter</td>
-    </tr>
+  <tbody  id="con">
+   
   </tbody>
 </table>
 
@@ -52,6 +36,11 @@ function request(body){
 		data.transactions.forEach(function(db){
 			console.log(db);
 			dbCache.push(db);
+			//if (db.type == 'ORDER_FILL'){
+				DateTime = new Date();
+				DateTime.setTime(parseFloat(db.time) * 1000);
+				$('#con').append('<tr><th scope="row">'+db.id+'</th><td>'+db.type+'</td><td>'+db.instrument+'</td><td>'+DateTime.toLocaleString()+'</td><td>'+db.pl+'</td><td>'+db.reason+'</td></tr>'); 
+			//}
 		});
 		lastid =  parseInt(data.lastTransactionID)
 		if (body.from <lastid) {

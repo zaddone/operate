@@ -8,11 +8,24 @@ import(
 	"net/url"
 	"io"
 	"fmt"
-	"time"
+	//"time"
 	"strconv"
 	"log"
 	//"math"
 )
+func CheckTrades(trid string)bool {
+	res,err := GetTrades(trid)
+	if err != nil {
+		return false
+	}
+	ct := res["trade"].(map[string]interface{})["closeTime"]
+	if ct != nil {
+		//fmt.Println("close Time",ct)
+		return true
+	}
+	return false
+
+}
 
 func ListTrades() (res map[string]interface{},err error) {
 	res = map[string]interface{}{}
@@ -279,12 +292,21 @@ func HandleOrder(InsName string,unit int, dif , Tp, Sl string) (*oanda.OrderResp
 
 
 type OrderInfo struct {
-	ins *Instrument
+	ins *oanda.Instrument
 	tp float64
 	sl float64
 	price float64
+	timeOut int64
 	res *oanda.OrderResponse
 	//resUpdate []interface{}
+}
+func NewOrderInfo(ins *oanda.Instrument) *OrderInfo {
+	return &OrderInfo{
+		ins:ins,
+	}
+}
+func (self *OrderInfo) TimeOut() int64 {
+	return self.timeOut
 }
 func (self *OrderInfo) String() string {
 	return fmt.Sprintf("sl:%s tp:%s resid:%s",self.ins.StandardPrice(self.sl),self.ins.StandardPrice(self.tp),self.GetResId())
@@ -292,29 +314,29 @@ func (self *OrderInfo) String() string {
 func (self *OrderInfo) GetRes()*oanda.OrderResponse{
 	return self.res
 }
-func NewTestOrder(pr *PriceVar,isBuy bool) (*OrderInfo,error) {
-	p := pr.GetLastPr()
-	if p == nil {
-		return nil,fmt.Errorf("last == nil")
-	}
-	fmt.Println(time.Unix(p.Time.Time(),0))
-	or := &OrderInfo{ins:pr.Ins}
-	var _p float64
-	var u int = config.Conf.Units
-	if isBuy {
-		_p = p.Ask()
-		or.sl = _p - pr.Ins.MinimumTrailingStopDistance*2
-		or.tp = _p + pr.Ins.MinimumTrailingStopDistance*2
-	}else{
-		u = -u
-		_p = p.Bid()
-		or.sl = _p + pr.Ins.MinimumTrailingStopDistance*2
-		or.tp = _p - pr.Ins.MinimumTrailingStopDistance*2
-	}
-	return or,or.Post(u)
-
-
-}
+//func NewTestOrder(pr *PriceVar,isBuy bool) (*OrderInfo,error) {
+//	p := pr.GetLastPr()
+//	if p == nil {
+//		return nil,fmt.Errorf("last == nil")
+//	}
+//	fmt.Println(time.Unix(p.Time.Time(),0))
+//	or := &OrderInfo{ins:pr.Ins}
+//	var _p float64
+//	var u int = config.Conf.Units
+//	if isBuy {
+//		_p = p.Ask()
+//		or.sl = _p - pr.Ins.MinimumTrailingStopDistance*2
+//		or.tp = _p + pr.Ins.MinimumTrailingStopDistance*2
+//	}else{
+//		u = -u
+//		_p = p.Bid()
+//		or.sl = _p + pr.Ins.MinimumTrailingStopDistance*2
+//		or.tp = _p - pr.Ins.MinimumTrailingStopDistance*2
+//	}
+//	return or,or.Post(u)
+//
+//
+//}
 func (self *OrderInfo) Close() {
 	_,err := ClosePosition(self.ins.Name,"ALL")
 	if err == nil {
@@ -332,10 +354,11 @@ func (self *OrderInfo) Update() {
 	}
 	return
 }
-func (self *OrderInfo) UpdateNew(tp,sl,pr float64) {
+func (self *OrderInfo) UpdateNew(tp,sl,pr float64,timeOut int64) {
 	self.sl = sl
 	self.tp = tp
 	self.price = pr
+	self.timeOut = timeOut
 	self.PostNew()
 }
 func (self *OrderInfo) PostNew() {
@@ -344,11 +367,45 @@ func (self *OrderInfo) PostNew() {
 	if unit == 0 {
 		return
 	}
-	if  (self.tp - self.sl)<0 {
+	if  self.tp < self.sl {
 		unit = -unit
 	}
 	//diff := self.ins.StandardPrice(math.Abs(self.sl - self.price))
 	self.res,_ = HandleOrder(self.ins.Name,unit,"",self.ins.StandardPrice(self.tp),self.ins.StandardPrice(self.sl))
+
+}
+func (self *OrderInfo) Check(p float64,dateTime int64) {
+
+	oid := self.GetResId()
+	if oid == "" {
+		return
+	}
+	if CheckTrades(oid) {
+		self.res = nil
+		return
+	}
+
+	//if ((dateTime - self.GetResTime()) > self.timeOut) ||
+	if (p>self.sl && p>self.tp) ||
+		(p< self.sl && p<self.tp) {
+
+		_,err := CloseTrades(oid,"ALL")
+		if err != nil {
+			return
+		}
+		if CheckTrades(oid) {
+			self.res = nil
+			return
+		}
+		_,err = ClosePosition(self.ins.Name,"ALL")
+		if err != nil {
+			return
+		}
+		if CheckTrades(oid) {
+			self.res = nil
+			return
+		}
+	}
 
 }
 
@@ -372,6 +429,9 @@ func (self *OrderInfo) GetResPrice() float64 {
 	return p
 }
 func (self *OrderInfo) GetResTime() int64 {
+	if self.res == nil {
+		return 0
+	}
 	return self.res.OrderFillTransaction.Time.Time()
 }
 func (self *OrderInfo) GetResId() string {

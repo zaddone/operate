@@ -3,7 +3,8 @@ import(
 	"net/http"
 	"github.com/boltdb/bolt"
 	"github.com/zaddone/operate/config"
-	"github.com/zaddone/operate/oanda"
+	//"github.com/zaddone/operate/oanda"
+	//"github.com/zaddone/operate/cache"
 	"io"
 	"net/url"
 	"strings"
@@ -11,9 +12,9 @@ import(
 	"compress/gzip"
 	"fmt"
 	"encoding/json"
-	"log"
-	"sync"
-	"bufio"
+	//"log"
+	//"sync"
+	//"bufio"
 	"bytes"
 	"strconv"
 	//"math"
@@ -21,27 +22,9 @@ import(
 var (
 	Header  http.Header
 	Ins_key []byte = []byte("instruments")
-	//InsMap map[string]*Instrument = map[string]*Instrument{}
-	InsSet sync.Map = sync.Map{}
-
 	AccountSummary map[string]interface{}
 	MarginRate float64
-	//isEnd bool = false
-	//ServerTime int64
 )
-func ShowInsSet() (m map[string]interface{}){
-	m = map[string]interface{}{}
-	InsSet.Range(func(k,v interface{})bool{
-		pv :=v.(*PriceVar)
-		pr := pv.GetLastPr()
-		if pr == nil {
-			return true
-		}
-		m[k.(string)] = map[string]interface{}{"ins":pv,"price":pr}
-		return true
-	})
-	return
-}
 func GetNowTime(timeu int64) time.Time {
 	loc,err := time.LoadLocation("Etc/GMT-3")
 	if err != nil {
@@ -54,39 +37,13 @@ func GetEndDaySec(timeu int64) int64 {
 	end := time.Date(now.Year(),now.Month(),now.Day(),0,0,0,0,now.Location()).AddDate(0,0,1)
 	return end.Unix() - timeu
 }
-//func ShowTime(){
-//	now := time.Now()
-//	fmt.Println(GetNowTime(),now,float64(GetEndDaySec())/3600)
-//}
-func Show(){
-	//num :=0
-	InsSet.Range(func(k,v interface{})bool{
-		p :=v.(*PriceVar)
-		if p.last != nil {
-			fmt.Println(k,p.last.PriceInterval(),p.PriceInterval(),p.TimeInterval())
-		}
-		//_v :=v.(*PriceVar)
-		//val := _v.get()
-		//p := math.Pow(10,_v.Ins.DisplayPrecision)
-		//bv := _v.Ins.MinimumTrailingStopDistance/val
-		//if bv >2{
-		//	fmt.Println(k,bv,_v.Ins.MinimumTrailingStopDistance*p,val*p)
-		//	num++
-		//}
-		return true
-	})
-}
-
 func init(){
-
 
 	Header = http.Header{}
 	Header.Set("Authorization", "Bearer "+ config.Authorization)
 	Header.Set("Connection", "Keep-Alive")
 	Header.Set("Accept-Datetime-Format", "UNIX")
 	Header.Set("Content-type", "application/json")
-
-
 	var err error
 	AccountSummary,err = GetAccSummary()
 	if err != nil {
@@ -97,139 +54,6 @@ func init(){
 		panic(err)
 	}
 	MarginRate = 1/MarginRate
-	syncPrice()
-
-}
-
-func syncGetPriceVar(ins_url *url.Values){
-
-	var err error
-	var lr,r []byte
-	var p bool
-	//Now := time.Now().Unix()
-	//var count int64
-	//fmt.Println(ins_url.Encode())
-	for{
-		err = clientHttp(0,
-		"GET",
-		config.Conf.GetStreamAccPath()+"/pricing/stream?"+ins_url.Encode(),
-		nil,
-		func(statusCode int,data io.Reader) error {
-			if statusCode != 200 {
-				msg:=""
-				var by [1024]byte
-				var n int
-				for{
-					n,err = data.Read(by[0:])
-					msg+= string(by[:n])
-					if err != nil {
-						break
-					}
-				}
-				return fmt.Errorf("%d %v %v %v",statusCode,msg,err)
-			}
-			buf := bufio.NewReader(data)
-			for{
-				r,p,err = buf.ReadLine()
-				//fmt.Println(string(r),p)
-				if p {
-					fmt.Println(string(r))
-					lr = r
-				}else if len(r)>0 {
-					if lr != nil {
-						r = append(lr,r...)
-						lr = nil
-					}
-
-					var d oanda.Price
-					er := json.Unmarshal(r,&d)
-					if er != nil {
-						log.Println(er,string(r))
-						continue
-					}
-					name := string(d.Instrument)
-
-					if GetEndDaySec(d.Time.Time())<60*10 {
-						er = CloseAllTrades()
-						if er != nil {
-							log.Println(er)
-						}
-						continue
-					}
-					if name != "" {
-						//ServerTime = d.Time.Time()
-						//count++
-						//timeDif:=(ServerTime - Now)
-						//fmt.Printf("%s %d %d\r",time.Unix(ServerTime,0),timeDif,count)
-						//fmt.Println(d)
-						v,ok := InsSet.Load(name)
-						if !ok {
-							panic(name)
-						}
-						go v.(*PriceVar).AddPrice(&d)
-					}
-
-				}
-				if err != nil {
-					if err != io.EOF {
-						//panic(err)
-						log.Println("line",err)
-					}
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			//panic(err)
-			log.Println("/pricing/stream",err)
-		}
-	}
-
-}
-
-func syncPrice() {
-
-	//ins_url := url.Values{}
-	var Ins []string
-	var b *bolt.Bucket
-	err := config.HandDB(func(db *bolt.DB)error{
-		return db.View(func(tx *bolt.Tx) error {
-			b = tx.Bucket(Ins_key)
-			if b == nil {
-				return nil
-			}
-			return b.ForEach(func(k,v []byte)error{
-				_ins := &Instrument{}
-				err := json.Unmarshal(v,_ins)
-				if err != nil {
-					panic(err)
-				}
-				InsSet.Store(string(k),NewPriceVar(_ins))
-				Ins = append(Ins,string(k))
-				return nil
-			})
-		})
-	})
-	if err != nil {
-		panic(err)
-	}
-	if b == nil {
-		err = downAccountProperties()
-		if err != nil {
-			panic(err)
-		}
-		syncPrice()
-	}else{
-		//le := len(Ins)
-		//var I int
-		//for i:=0;i<le;{
-		//	I=i+50
-		//	go syncGetPriceVar(&url.Values{"instruments":[]string{strings.Join(Ins[i:I],",")}})
-		//	i = i
-		//}
-		go syncGetPriceVar(&url.Values{"instruments":[]string{strings.Join(Ins,",")}})
-	}
 
 }
 
@@ -286,7 +110,7 @@ func clientHttp(num int ,methob string,path string,body interface{}, hand func(s
 	return err
 
 }
-func downAccountProperties() error {
+func DownAccountProperties() error {
 	//fmt.Println("down")
 	return clientHttp(0,"GET",config.Conf.GetAccPath()+"/instruments",nil,func(statusCode int,data io.Reader)(err error){
 		jsondb := json.NewDecoder(data)

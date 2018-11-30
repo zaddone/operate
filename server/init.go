@@ -2,7 +2,7 @@ package server
 import(
 
 	"fmt"
-	"time"
+	//"time"
 	"net/http"
 	"net/url"
 	"github.com/zaddone/operate/config"
@@ -10,7 +10,7 @@ import(
 	//"github.com/zaddone/operate/oanda"
 	"github.com/zaddone/operate/request"
 	"encoding/json"
-	"strings"
+	//"strings"
 	"io/ioutil"
 	"io"
 	"strconv"
@@ -63,11 +63,6 @@ func init(){
 	})
 
 	Router.GET("/trades",func(c *gin.Context){
-		//res,err := request.ListTrades()
-		//if err != nil {
-		//	c.String(http.StatusNotFound,"<!DOCTYPE html><html>"+err.Error()+"</html>",nil)
-		//	return
-		//}
 		c.HTML(http.StatusOK,"trades.tmpl",nil)
 
 	})
@@ -87,9 +82,9 @@ func init(){
 		res,err := request.GetAccSummary()
 		c.JSON(http.StatusOK,map[string]interface{}{"res":res,"err":err})
 	})
-	Router.GET("/show",func(c *gin.Context){
-		c.JSON(http.StatusOK,request.ShowInsSet())
-	})
+	//Router.GET("/show",func(c *gin.Context){
+	//	c.JSON(http.StatusOK,request.ShowInsSet())
+	//})
 	Router.GET("/open",func(c *gin.Context){
 		res,err := request.ListTrades()
 		if err != nil {
@@ -98,45 +93,45 @@ func init(){
 		}
 		c.JSON(http.StatusOK,res)
 	})
-	Router.GET("/test",func(c *gin.Context){
-		var orderFill []interface{}
-		t,err := time.Parse(config.TimeFormat,"2018-09-01T00:00:00")
-		if err != nil {
-			panic(err)
-		}
-		err = request.GetTransactions(int(t.Unix()),func(db interface{}) bool {
-			dbm := db.(map[string]interface{})
-			//if dbm["type"] != "ORDER_FILL" {
-			//	return true
-			//}
-			//fmt.Println(dbm)
-			orderFill = append(orderFill,dbm)
-			if len(orderFill) >100 {
-				return false
-			}
-			return true
-		})
-		if err != nil {
-			c.JSON(http.StatusNotFound,err)
-			return
-		}
-		c.JSON(http.StatusOK,orderFill)
-	})
-	Router.GET("/order/:isBuy/:insName",func(c *gin.Context){
+	//Router.GET("/test",func(c *gin.Context){
+	//	var orderFill []interface{}
+	//	t,err := time.Parse(config.TimeFormat,"2018-09-01T00:00:00")
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	err = request.GetTransactions(int(t.Unix()),func(db interface{}) bool {
+	//		dbm := db.(map[string]interface{})
+	//		//if dbm["type"] != "ORDER_FILL" {
+	//		//	return true
+	//		//}
+	//		//fmt.Println(dbm)
+	//		orderFill = append(orderFill,dbm)
+	//		if len(orderFill) >100 {
+	//			return false
+	//		}
+	//		return true
+	//	})
+	//	if err != nil {
+	//		c.JSON(http.StatusNotFound,err)
+	//		return
+	//	}
+	//	c.JSON(http.StatusOK,orderFill)
+	//})
+	//Router.GET("/order/:isBuy/:insName",func(c *gin.Context){
 
-		v,ok := request.InsSet.Load(strings.ToUpper(c.Param("insName")))
-		if !ok {
-			c.JSON(http.StatusNotFound,gin.H{"msg":fmt.Sprintf("Fount not insName %s",c.Param("insName"))})
-			return
-		}
-		or,err := request.NewTestOrder(v.(*request.PriceVar),strings.ToLower(c.Param("isBuy"))=="buy")
-		if err != nil {
-			c.JSON(http.StatusNotFound,gin.H{"msg":err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK,gin.H{"id":or.GetResId(),"date":time.Unix(or.GetResTime(),0)})
+	//	v,ok := request.InsSet.Load(strings.ToUpper(c.Param("insName")))
+	//	if !ok {
+	//		c.JSON(http.StatusNotFound,gin.H{"msg":fmt.Sprintf("Fount not insName %s",c.Param("insName"))})
+	//		return
+	//	}
+	//	or,err := request.NewTestOrder(v.(*request.PriceVar),strings.ToLower(c.Param("isBuy"))=="buy")
+	//	if err != nil {
+	//		c.JSON(http.StatusNotFound,gin.H{"msg":err.Error()})
+	//		return
+	//	}
+	//	c.JSON(http.StatusOK,gin.H{"id":or.GetResId(),"date":time.Unix(or.GetResTime(),0)})
 
-	})
-	Router.Run(config.Conf.Port)
+	//})
+	//go Router.Run(config.Conf.Port)
 
 }
