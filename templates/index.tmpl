@@ -31,21 +31,31 @@
 
 <script>
 dbCache = new Array();
+var sumPl = 0.0;
+var count = 0;	
 function request(body){
-	$.getJSON('/report',body,function(data) {		
+	$.getJSON('/report',body,function(data) {
+	
 		data.transactions.forEach(function(db){
 			console.log(db);
 			dbCache.push(db);
-			//if (db.type == 'ORDER_FILL'){
-				DateTime = new Date();
-				DateTime.setTime(parseFloat(db.time) * 1000);
-				$('#con').append('<tr><th scope="row">'+db.id+'</th><td>'+db.type+'</td><td>'+db.instrument+'</td><td>'+DateTime.toLocaleString()+'</td><td>'+db.pl+'</td><td>'+db.reason+'</td></tr>'); 
-			//}
+			if (db.type == 'ORDER_FILL'){
+				pl = parseFloat(db.pl);
+				if (pl != 0.0){
+					sumPl+=pl;
+					count++;
+					DateTime = new Date();
+					DateTime.setTime(parseFloat(db.time) * 1000);
+					$('#con').append('<tr><th scope="row">'+db.id+'</th><td>'+db.type+'</td><td>'+db.instrument+'</td><td>'+DateTime.toLocaleString()+'</td><td>'+pl+'</td><td>'+db.reason+'</td></tr>'); 
+				}
+			}
 		});
 		lastid =  parseInt(data.lastTransactionID)
 		if (body.from <lastid) {
 			request({page:body.page,from:lastid+1});			
-		}		
+		}else{
+			$('#con').prepend('<tr><th scope="row">Summary</th><td></td><td></td><td>'+sumPl+'</td><td>'+count+'</td></tr>');
+		}	
 	});
 }
 $(function(){

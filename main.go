@@ -115,6 +115,7 @@ func syncGetPriceVar(ins_url *url.Values){
 						log.Println(er,string(r))
 						continue
 					}
+					//fmt.Printf("%s\r",request.GetNowTime(d.Time.Time()))
 					name := string(d.Instrument)
 
 					if request.GetEndDaySec(d.Time.Time())<60*10 {

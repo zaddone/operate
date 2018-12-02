@@ -290,7 +290,6 @@ func HandleOrder(InsName string,unit int, dif , Tp, Sl string) (*oanda.OrderResp
 
 }
 
-
 type OrderInfo struct {
 	ins *oanda.Instrument
 	tp float64
@@ -380,6 +379,13 @@ func (self *OrderInfo) Check(p float64,dateTime int64) {
 	if oid == "" {
 		return
 	}
+	defer func(){
+		if self.timeOut != 0 {
+			if self.GetResId() == "" {
+				self.timeOut = 0
+			}
+		}
+	}()
 	if CheckTrades(oid) {
 		self.res = nil
 		return
@@ -388,7 +394,6 @@ func (self *OrderInfo) Check(p float64,dateTime int64) {
 	//if ((dateTime - self.GetResTime()) > self.timeOut) ||
 	if (p>self.sl && p>self.tp) ||
 		(p< self.sl && p<self.tp) {
-
 		_,err := CloseTrades(oid,"ALL")
 		if err != nil {
 			return

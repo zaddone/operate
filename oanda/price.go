@@ -16,6 +16,9 @@ func NewEasyPrice(p *Price)*EasyPrice{
 		ask:p.Ask(),
 	}
 }
+func (self *EasyPrice) Read(hand func(interface{})){
+	hand(self)
+}
 func (self *EasyPrice) DateTime() int64 {
 	return self.dateTime
 }

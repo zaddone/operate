@@ -1,20 +1,26 @@
 package cache
 import(
-	"github.com/zaddone/operate/request"
+	//"github.com/zaddone/operate/request"
+	//"github.com/zaddone/operate/config"
 	"github.com/zaddone/operate/oanda"
+	//"path/filepath"
 	"sync"
 	"math"
 	"time"
+	//"log"
+	//"os"
+	//"fmt"
 )
 const(
-	MaxTag = 3
-	TimeOut = 3600
+	TimeOut = 14400
 )
 type element interface{
 	DateTime() int64
 	Middle() float64
 	Diff() float64
+	Read(func(interface{}))
 }
+
 type eNode struct {
 	li []element
 	middle float64
@@ -32,6 +38,11 @@ func NewNode(li []element) (n *eNode) {
 	n.middle /= float64(len(li))
 	return
 }
+func (self *eNode) Read(hand func(interface{})){
+	for _,e := range self.li {
+		e.Read(hand)
+	}
+}
 
 func (self *eNode) DateTime() int64{
 	le := len(self.li)
@@ -47,10 +58,11 @@ func (self *eNode) Diff() float64{
 	return self.diff
 }
 type level struct {
+
 	list []element
 	dis float64
 	par *level
-	//tag int
+	tag int
 
 	max float64
 	maxid int
@@ -60,29 +72,37 @@ type level struct {
 	sl element
 
 }
-func NewLevel() *level {
+func NewLevel(tag int) *level {
 	return &level{
 		list:make([]element,0,100),
-		//tag:tag,
+		tag:tag,
 	}
 }
+func (self *level) getBoundVal() (tp,sl element){
+	if self.maxid == 0 {
+		return self.tp,self.sl
+	}
+	return self.list[0],self.list[self.maxid]
+}
 
-func (self *level) checkOrder(orderHandle func(tp,sl float64,timeOut int64)) bool {
+func (self *level) checkOrder(e element,ins *oanda.Instrument,orderHandle func(*order)) bool {
 
-	if !self.update {
+	if self.par == nil || self.par.par == nil {
 		return false
 	}
-	self.update = false
-	if self.par == nil {
+	if self.update {
+		if self.checkOrder(e,ins,orderHandle) {
+			return true
+		}
+	}
+	tp,sl := self.getBoundVal()
+	f := tp.Middle() >sl.Middle()
+	if (f != (self.par.dis>0)) || (f != (self.par.par.dis>0)) {
 		return false
 	}
-	if self.par.checkOrder(orderHandle){
-		return true
-	}
-	if (self.par.dis >0) != (self.dis>0) {
-		return false
-	}
-	if self.par.max != 0 {
+	tp_ :=math.Abs(tp.Middle() - e.Middle())
+	sl_ :=math.Abs(sl.Middle() - e.Middle())
+	if (tp_ < sl_) || (sl_ < e.Diff()*4) {
 		return false
 	}
 	le := len(self.par.list)
@@ -90,31 +110,20 @@ func (self *level) checkOrder(orderHandle func(tp,sl float64,timeOut int64)) boo
 	for i:=0;i < le;i++{
 		sum += self.par.list[i].Diff()
 	}
-	sum /= float64(le)
-	tp := self.tp.Middle()
-	sl := self.sl.Middle()
-	if (tp>sl) {
-		sl -=self.sl.Diff()
-		tp +=self.tp.Diff()
-	}else{
-		sl +=self.sl.Diff()
-		tp -=self.tp.Diff()
-	}
-	if math.Abs(tp - sl)<sum {
+	if sum/float64(le) > math.Abs(tp.Middle() - sl.Middle()) {
 		return false
 	}
-	if math.Abs(self.dis)*2 > sum {
-		return false
-	}
-	orderHandle(
-		tp,
-		sl,
-		func(n int64)int64{
-		if n<0 {
-			return -n
-		}
-		return n
-	}(self.tp.DateTime() - self.sl.DateTime())*2)
+	orderHandle(NewOrder(
+		e,
+		ins,
+		self.par,tp.Middle(),
+		func()float64{
+			if (f) {
+				return sl.Middle()+sl.Diff()
+			}
+			return sl.Middle()-sl.Diff()
+		}(),
+	))
 	return true
 
 }
@@ -157,7 +166,7 @@ func (self *level) add(e element) {
 		self.par = nil
 	}else{
 		if self.par == nil {
-			self.par = NewLevel()
+			self.par = NewLevel(self.tag+1)
 		}
 		self.par.add(NewNode(self.list[:self.maxid]))
 	}
@@ -181,7 +190,8 @@ type Cache struct {
 	priceChan chan element
 	stop chan bool
 	sync.RWMutex
-	order *request.OrderInfo
+	//order *request.OrderInfo
+	orders map[string]*order
 
 }
 func (self *Cache) GetLastElement() element {
@@ -203,11 +213,12 @@ func (self *Cache) EndTime() time.Time {
 }
 func NewCache(ins *oanda.Instrument) (c *Cache) {
 	c = &Cache{
-		part:NewLevel(),
+		part:NewLevel(0),
 		Ins:ins,
 		priceChan:make(chan element),
 		stop:make(chan bool),
-		order:request.NewOrderInfo(ins),
+		//order:request.NewOrderInfo(ins),
+		orders:make(map[string]*order),
 	}
 	go c.runAdd()
 	return c
@@ -221,19 +232,22 @@ func (self *Cache) runAdd(){
 			self.Lock()
 			self.part.add(p)
 			if self.part.update {
-				//if self.part.par != nil {
-					self.part.checkOrder(func(tp,sl float64,timeOut int64){
-						//if (self.part.dis >0) == ((tp-sl) >0) {
-						go self.order.UpdateNew(tp,sl,p.Middle(),timeOut)
-						//}
-					})
-				//}
+				self.part.checkOrder(p,self.Ins,func(o *order){
+					self.orders[o.f.Name()] = o
+				})
 			}
 			self.Unlock()
 		}
 	}
 }
-func (self *Cache) AddPrice(p element){
-	go self.order.Check(p.Middle(),p.DateTime())
+func (self *Cache) AddPrice(p element) {
+	for k,o := range self.orders{
+		go func(_o *order,_k string){
+			if _o.check(p) {
+				delete(self.orders,k)
+			}
+		}(o,k)
+	}
+	//go self.order.Check(p.Middle())
 	self.priceChan<-p
 }
