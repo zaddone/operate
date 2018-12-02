@@ -30,7 +30,7 @@ func NewNode(li []element) (n *eNode) {
 	le:=len(li)
 	n = &eNode{
 		li:li,
-		diff:math.Abs(li[0].Middle() - li[le-1].Middle()),
+		diff:li[le-1].Middle() - li[0].Middle(),
 	}
 	for _,e := range li {
 		n.middle+=e.Middle()
@@ -87,7 +87,7 @@ func (self *level) getBoundVal() (tp,sl element){
 
 func (self *level) checkOrder(e element,ins *oanda.Instrument,orderHandle func(*order)) bool {
 
-	if self.par == nil || self.par.par == nil {
+	if self.par == nil {
 		return false
 	}
 	if self.update {
@@ -96,32 +96,51 @@ func (self *level) checkOrder(e element,ins *oanda.Instrument,orderHandle func(*
 		}
 	}
 	tp,sl := self.getBoundVal()
-	f := tp.Middle() >sl.Middle()
-	if (f != (self.par.dis>0)) || (f != (self.par.par.dis>0)) {
-		return false
-	}
 	tp_ :=math.Abs(tp.Middle() - e.Middle())
 	sl_ :=math.Abs(sl.Middle() - e.Middle())
-	if (tp_ < sl_) || (sl_ < e.Diff()*4) {
+	if (tp_ < sl_) || (sl_ < math.Abs(e.Diff())*3) {
+	//if (tp_ < sl_){
 		return false
 	}
-	le := len(self.par.list)
-	var sum float64
-	for i:=0;i < le;i++{
-		sum += self.par.list[i].Diff()
+
+	le := len(self.par.list)-1
+	var sum,sum1,c,c1 float64
+	for i:=0;i<le;i++{
+		d :=self.par.list[i].Diff()
+		if d > 0 {
+			sum += d
+			c++
+		}else{
+			sum1 += d
+			c1++
+		}
 	}
-	if sum/float64(le) > math.Abs(tp.Middle() - sl.Middle()) {
+	if c ==0 || c1==0 {
 		return false
+	}
+	diff:= tp.Middle()-sl.Middle()
+	if (diff > 0) == (sum > 0) {
+		sum = math.Abs(sum/c)
+		sum1 = math.Abs(sum1/c1)
+		if (sum < sum1) || (math.Abs(diff) < sum) {
+			return false
+		}
+	}else{
+		sum = math.Abs(sum/c)
+		sum1 = math.Abs(sum1/c1)
+		if (sum > sum1) ||  (math.Abs(diff) <sum1) {
+			return false
+		}
 	}
 	orderHandle(NewOrder(
 		e,
 		ins,
 		self.par,tp.Middle(),
 		func()float64{
-			if (f) {
-				return sl.Middle()+sl.Diff()
+			if (tp.Middle()>sl.Middle()) {
+				return sl.Middle()+math.Abs(sl.Diff())
 			}
-			return sl.Middle()-sl.Diff()
+			return sl.Middle()-math.Abs(sl.Diff())
 		}(),
 	))
 	return true
@@ -146,7 +165,7 @@ func (self *level) add(e element) {
 	var _e element
 	for i:=0 ; i<le ; i++ {
 		_e = self.list[i]
-		sumdif += _e.Diff()
+		sumdif += math.Abs(_e.Diff())
 		diff = mid - _e.Middle()
 		if (diff>0) == (self.dis>0) {
 			continue
