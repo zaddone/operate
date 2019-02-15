@@ -77,7 +77,7 @@ func clientHttp(num int ,methob string,path string,body interface{}, hand func(s
 		case string:
 			r = strings.NewReader(body.(string))
 		default:
-			fmt.Printf("%v\r\n",body)
+			//fmt.Printf("%v\r\n",body)
 			panic(0)
 
 		}
@@ -92,7 +92,7 @@ func clientHttp(num int ,methob string,path string,body interface{}, hand func(s
 	cli := http.Client{}
 	res, err := cli.Do(Req)
 	if err != nil {
-		fmt.Println(err)
+		//fmt.Println(err)
 		time.Sleep(time.Second*5)
 		return clientHttp(num+1,methob,path,body,hand)
 	}
@@ -110,6 +110,7 @@ func clientHttp(num int ,methob string,path string,body interface{}, hand func(s
 	return err
 
 }
+
 func DownAccountProperties() error {
 	//fmt.Println("down")
 	return clientHttp(0,"GET",config.Conf.GetAccPath()+"/instruments",nil,func(statusCode int,data io.Reader)(err error){
@@ -148,7 +149,6 @@ func DownAccountProperties() error {
 
 	})
 }
-
 func candlesHandle(path string, f func(c interface{}) error) (err error) {
 	da := make(map[string]interface{})
 	err = clientHttp(0,"GET",path,nil,func(statusCode int,data io.Reader)(err error){
@@ -171,7 +171,7 @@ func candlesHandle(path string, f func(c interface{}) error) (err error) {
 	for _, c := range ca {
 		err = f(c)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 			break
 		}
 	}

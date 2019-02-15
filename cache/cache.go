@@ -1,7 +1,7 @@
 package cache
 import(
 	//"github.com/zaddone/operate/request"
-	//"github.com/zaddone/operate/config"
+	"github.com/zaddone/operate/config"
 	"github.com/zaddone/operate/oanda"
 	//"path/filepath"
 	"sync"
@@ -71,6 +71,8 @@ type level struct {
 	tp element
 	sl element
 
+	lastOrder *order
+
 }
 func NewLevel(tag int) *level {
 	return &level{
@@ -90,15 +92,19 @@ func (self *level) checkOrder(e element,ins *oanda.Instrument,orderHandle func(*
 	if self.par == nil {
 		return false
 	}
-	if self.update {
-		if self.checkOrder(e,ins,orderHandle) {
-			return true
-		}
+	if self.update  &&
+	self.par.checkOrder(e,ins,orderHandle) {
+		return true
 	}
 	tp,sl := self.getBoundVal()
+	if (self.par.lastOrder != nil) &&
+	(tp.Middle() == self.par.lastOrder.tp) {
+		return false
+	}
 	tp_ :=math.Abs(tp.Middle() - e.Middle())
 	sl_ :=math.Abs(sl.Middle() - e.Middle())
-	if (tp_ < sl_) || (sl_ < math.Abs(e.Diff())*3) {
+	if (tp_ < sl_) ||
+	(sl_ < math.Abs(e.Diff())*config.Conf.Val) {
 	//if (tp_ < sl_){
 		return false
 	}
@@ -135,12 +141,13 @@ func (self *level) checkOrder(e element,ins *oanda.Instrument,orderHandle func(*
 	orderHandle(NewOrder(
 		e,
 		ins,
-		self.par,tp.Middle(),
+		self.par,
+		tp.Middle(),
 		func()float64{
 			if (tp.Middle()>sl.Middle()) {
-				return sl.Middle()+math.Abs(sl.Diff())
+				return sl.Middle()-math.Abs(sl.Diff())
 			}
-			return sl.Middle()-math.Abs(sl.Diff())
+			return sl.Middle()+math.Abs(sl.Diff())
 		}(),
 	))
 	return true
@@ -192,9 +199,9 @@ func (self *level) add(e element) {
 
 	self.tp = self.list[0]
 	self.sl = self.list[self.maxid]
-	li := self.list[self.maxid:]
-	self.list = make([]element,0,100)
-	copy(self.list,li)
+	self.list = self.list[self.maxid:]
+	//self.list = make([]element,0,100)
+	//copy(self.list,li)
 	self.dis = self.max
 	self.max = 0
 	self.maxid = 0
@@ -234,7 +241,7 @@ func NewCache(ins *oanda.Instrument) (c *Cache) {
 	c = &Cache{
 		part:NewLevel(0),
 		Ins:ins,
-		priceChan:make(chan element),
+		priceChan:make(chan element,10),
 		stop:make(chan bool),
 		//order:request.NewOrderInfo(ins),
 		orders:make(map[string]*order),
@@ -249,6 +256,9 @@ func (self *Cache) runAdd(){
 			return
 		case p:= <-self.priceChan:
 			self.Lock()
+			if e := self.GetLastElement(); (e!= nil) && ((p.DateTime() - e.DateTime()) >300) {
+				self.part = NewLevel(0)
+			}
 			self.part.add(p)
 			if self.part.update {
 				self.part.checkOrder(p,self.Ins,func(o *order){

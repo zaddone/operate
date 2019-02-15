@@ -138,16 +138,16 @@ func HandleTrades(tp,sl,id string) (*oanda.TradesOrdersRequest,error) {
 		}
 		return jsondb.Decode(&mr)
 	})
-	if err != nil {
-		config.Conf.Log([]byte(err.Error()))
-		//panic(err)
-	}else{
-		db,err := json.Marshal(mr)
-		if err != nil {
-			panic(err)
-		}
-		config.Conf.Log(db)
-	}
+	//if err != nil {
+	//	config.Conf.Log([]byte(err.Error()))
+	//	//panic(err)
+	//}else{
+	//	db,err := json.Marshal(mr)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	config.Conf.Log(db)
+	//}
 	return &mr,err
 
 }
@@ -172,16 +172,16 @@ func CloseTrades(tradeId string,longUnits string) (res map[string]interface{}, e
 		}
 		return err
 	})
-	if err != nil {
-		config.Conf.Log([]byte(err.Error()))
-		//panic(err)
-	}else{
-		db,err := json.Marshal(res)
-		if err != nil {
-			panic(err)
-		}
-		config.Conf.Log(db)
-	}
+	//if err != nil {
+	//	config.Conf.Log([]byte(err.Error()))
+	//	//panic(err)
+	//}else{
+	//	db,err := json.Marshal(res)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	config.Conf.Log(db)
+	//}
 	return res,err
 
 }
@@ -209,16 +209,16 @@ func ClosePosition(InsName string,longUnits string) (*oanda.PositionResponses,er
 		}
 		return jsondb.Decode(&mr)
 	})
-	if err != nil {
-		config.Conf.Log([]byte(err.Error()))
-		//panic(err)
-	}else{
-		db,err := json.Marshal(mr)
-		if err != nil {
-			panic(err)
-		}
-		config.Conf.Log(db)
-	}
+	//if err != nil {
+	//	config.Conf.Log([]byte(err.Error()))
+	//	//panic(err)
+	//}else{
+	//	db,err := json.Marshal(mr)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	config.Conf.Log(db)
+	//}
 	return &mr,err
 
 }
@@ -276,16 +276,16 @@ func HandleOrder(InsName string,unit int, dif , Tp, Sl string) (*oanda.OrderResp
 		return jsondb.Decode(&mr)
 
 	})
-	if err != nil {
-		config.Conf.Log([]byte(err.Error()))
-		//panic(err)
-	}else{
-		db,err := json.Marshal(mr)
-		if err != nil {
-			panic(err)
-		}
-		config.Conf.Log(db)
-	}
+	//if err != nil {
+	//	config.Conf.Log([]byte(err.Error()))
+	//	//panic(err)
+	//}else{
+	//	db,err := json.Marshal(mr)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	config.Conf.Log(db)
+	//}
 	return &mr, err
 
 }

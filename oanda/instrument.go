@@ -23,6 +23,9 @@ type Instrument struct {
 	Type                string `json:"type"`
 
 }
+func (self *Instrument) Load(tmp map[string]interface{}) (err error) {
+	return self.load(tmp)
+}
 
 func (self *Instrument) load(tmp map[string]interface{}) (err error) {
 	self.Name = tmp["name"].(string)
@@ -58,10 +61,15 @@ func (self *Instrument) load(tmp map[string]interface{}) (err error) {
 
 	return nil
 }
+
+func (self *Instrument) Integer() float64 {
+
+	return math.Pow10(int(self.DisplayPrecision))
+}
 func (self *Instrument) StandardPrice(pr float64) string {
 
 	_int,frac:= math.Modf(pr)
-	frac  = math.Pow10(int(self.DisplayPrecision)) * frac
+	frac  = self.Integer() * frac
 	return fmt.Sprintf("%d.%d", int(_int),int(frac))
 
 }

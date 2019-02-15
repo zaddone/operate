@@ -75,6 +75,7 @@ type Config struct {
 	LogPath string
 	//DbPath string
 	KvDbPath string
+	Val float64
 
 }
 func GetGran(t int64) *Gran{
@@ -156,6 +157,7 @@ func NewConfig()  *Config {
 		c.LogPath = "TrLog"
 		//c.DbPath = "db.db"
 		c.KvDbPath = "kvdb.db"
+		c.Val = 3
 		//c.LoadGranularity()
 		c.Save()
 	}else{

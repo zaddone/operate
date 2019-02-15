@@ -45,7 +45,6 @@ func ShowInsSet() (m map[string]interface{}){
 	return
 }
 func syncPrice() {
-
 	//ins_url := url.Values{}
 	var Ins []string
 	var b *bolt.Bucket
@@ -101,7 +100,7 @@ func syncGetPriceVar(ins_url *url.Values){
 				r,p,err = buf.ReadLine()
 				//fmt.Println(string(r),p)
 				if p {
-					fmt.Println(string(r))
+					//fmt.Println(string(r))
 					lr = r
 				}else if len(r)>0 {
 					if lr != nil {
@@ -112,7 +111,7 @@ func syncGetPriceVar(ins_url *url.Values){
 					var d oanda.Price
 					er := json.Unmarshal(r,&d)
 					if er != nil {
-						log.Println(er,string(r))
+						//log.Println(er,string(r))
 						continue
 					}
 					//fmt.Printf("%s\r",request.GetNowTime(d.Time.Time()))
@@ -137,7 +136,7 @@ func syncGetPriceVar(ins_url *url.Values){
 				if err != nil {
 					if err != io.EOF {
 						//panic(err)
-						log.Println("line",err)
+						//log.Println("line",err)
 					}
 					return err
 				}
@@ -146,7 +145,7 @@ func syncGetPriceVar(ins_url *url.Values){
 		})
 		if err != nil {
 			//panic(err)
-			log.Println("/pricing/stream",err)
+			//log.Println("/pricing/stream",err)
 		}
 	}
 

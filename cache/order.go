@@ -8,6 +8,7 @@ import(
 	"path/filepath"
 	"math"
 	"fmt"
+	"log"
 
 )
 type order struct{
@@ -21,9 +22,11 @@ type order struct{
 	sync.Mutex
 	le *level
 	k float64
+	path string
 
 }
 func NewOrder(e element,ins *oanda.Instrument,le *level,tp,sl float64) (o *order) {
+
 	o = &order{
 		e:e,
 		ins:ins,
@@ -32,32 +35,36 @@ func NewOrder(e element,ins *oanda.Instrument,le *level,tp,sl float64) (o *order
 		sl:sl,
 		k:math.Pow10(int(ins.DisplayPrecision)),
 	}
+	le.lastOrder = o
 	o.openFile()
 	go o.load()
 	go o.postOrder()
-
 	return o
 
 }
 func (self *order) close(){
+	old := self.f.Name()
 	self.f.Close()
+	if err := os.Rename(old,old+".log"); err != nil {
+		log.Println(err)
+	}
 }
 func (self *order) openFile(){
 
-	path := filepath.Join(
+	self.path = filepath.Join(
 		config.Conf.LogPath,
 		request.GetNowTime(self.e.DateTime()).Format("20060102"),
 	)
-	_,err := os.Stat(path)
+	_,err := os.Stat(self.path)
 	if err != nil {
-		err = os.MkdirAll(path,0600)
+		err = os.MkdirAll(self.path,0700)
 		if err != nil {
 			panic(err)
 		}
 	}
 	self.f,err = os.OpenFile(
 		filepath.Join(
-			path,
+			self.path,
 			fmt.Sprintf("%s_%d_%d_%d",
 				self.ins.Name,
 				self.le.tag,
@@ -66,7 +73,7 @@ func (self *order) openFile(){
 			),
 		),
 		os.O_APPEND|os.O_CREATE|os.O_RDWR|os.O_SYNC,
-		0600,
+		0700,
 	)
 
 }
@@ -85,7 +92,7 @@ func (self *order) load(){
 			self.f.WriteString(fmt.Sprintf("%d %d %d\n",int(self.k*__e.Middle()),int(self.k*__e.Diff()),__e.DateTime()))
 		})
 	}
-	self.f.WriteString("end")
+	self.f.WriteString("end\n")
 	self.Unlock()
 
 }
